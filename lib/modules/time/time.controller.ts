@@ -24,8 +24,8 @@ const _HOUR_PLACEHOLDER = 12
  *  instead of the expected 2020, 1, 1.
  */
 export const eventDateData = {
-    ocEventStartDate: new Date(2023, 11, 8, _HOUR_PLACEHOLDER),
-    icEventStartDate: new Date(2023, 6, 31, _HOUR_PLACEHOLDER),
+    ocEventStartDate: new Date(2024, 6, 31, _HOUR_PLACEHOLDER),
+    icEventStartDate: new Date(2023, 7, 14, _HOUR_PLACEHOLDER),
 }
 
 /**

@@ -26,17 +26,18 @@ export class TimeRoutes {
          */
         router.route('/settings').post(async (req, res) => {
             try {
-                const { ocEventStartDate, icEventStartDate } = req.body;
+                const { ocEventStartDate, icEventStartDate, icStartYear } = req.body;
 
-                if (!ocEventStartDate || !icEventStartDate) {
+                if (!ocEventStartDate || !icEventStartDate || !icStartYear) {
                     return res.status(400).send({
-                        error: 'Missing required fields: ocEventStartDate and icEventStartDate'
+                        error: 'Missing required fields: ocEventStartDate, icEventStartDate, and icStartYear'
                     });
                 }
 
                 const settings = await updateEventDateSettings(
                     new Date(ocEventStartDate),
-                    new Date(icEventStartDate)
+                    new Date(icEventStartDate),
+                    Number(icStartYear)
                 );
 
                 res.status(200).send({

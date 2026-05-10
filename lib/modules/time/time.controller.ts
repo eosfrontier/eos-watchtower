@@ -1,15 +1,13 @@
-const dayjs = require('dayjs');
-const UTC = require('dayjs/plugin/utc');
-const {
-    getLocalizedDayNumber,
-    getDayOfWeekName,
-} = require("./time.helper");
-const { IcDate } = require("../../bin/models/time");
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import { getLocalizedDayNumber, getDayOfWeekName } from "./time.helper";
+import { IcDate } from "../../bin/models/time";
 import { SOCKET_TIME_UPDATE } from "../../shared/constants.sockets";
 import { Server } from "../../bin/server";
 import EventDateSettings from "../../bin/models/eventDateSettings";
+import CONFIG from "../../../_config/config.json";
 
-dayjs.extend(UTC);
+dayjs.extend(utc);
 
 
 // TODO: dynamic dates.
@@ -29,6 +27,7 @@ const _HOUR_PLACEHOLDER = 12
 const DEFAULT_EVENT_DATES = {
     ocEventStartDate: new Date(2025, 11, 12, _HOUR_PLACEHOLDER),
     icEventStartDate: new Date(2025, 8, 26, _HOUR_PLACEHOLDER),
+    icStartYear: CONFIG.icDate.yearDefault,
 }
 
 // This will be populated from MongoDB on first use
@@ -51,6 +50,7 @@ export const getEventDateSettings = async () => {
         eventDateData = {
             ocEventStartDate: settings.ocEventStartDate,
             icEventStartDate: settings.icEventStartDate,
+            icStartYear: settings.icStartYear,
         };
         
         return eventDateData;
@@ -64,9 +64,10 @@ export const getEventDateSettings = async () => {
  * @description Update event date settings in MongoDB
  * @param {Date} ocEventStartDate
  * @param {Date} icEventStartDate
+ * @param {number} icStartYear
  * @return {Promise<IEventDateSettings>}
  */
-export const updateEventDateSettings = async (ocEventStartDate: Date, icEventStartDate: Date) => {
+export const updateEventDateSettings = async (ocEventStartDate: Date, icEventStartDate: Date, icStartYear: number) => {
     try {
         let settings = await EventDateSettings.findOne();
         
@@ -74,10 +75,12 @@ export const updateEventDateSettings = async (ocEventStartDate: Date, icEventSta
             settings = new EventDateSettings({
                 ocEventStartDate,
                 icEventStartDate,
+                icStartYear,
             });
         } else {
             settings.ocEventStartDate = ocEventStartDate;
             settings.icEventStartDate = icEventStartDate;
+            settings.icStartYear = icStartYear;
             settings.updatedAt = new Date();
         }
         
@@ -85,6 +88,7 @@ export const updateEventDateSettings = async (ocEventStartDate: Date, icEventSta
         eventDateData = {
             ocEventStartDate: settings.ocEventStartDate,
             icEventStartDate: settings.icEventStartDate,
+            icStartYear: settings.icStartYear,
         };
         
         return settings;
@@ -137,26 +141,25 @@ export const getCurrentIcDate = async () => {
     // Fetch latest settings from MongoDB
     await getEventDateSettings();
     
-    const { ocEventStartDate, icEventStartDate } = eventDateData;
+    const { ocEventStartDate, icEventStartDate, icStartYear } = eventDateData;
     const _timePassed = getTimePassedSinceDate(ocEventStartDate);
 
-    let currentRealDate = icEventStartDate;
+    let currentIcDateValue = icEventStartDate;
     if (_timePassed > 0) {
-        currentRealDate = dayjs(icEventStartDate)
+        currentIcDateValue = dayjs(icEventStartDate)
             .utc()
             .add(_timePassed)
             .toDate();
     }
 
-    const icDate = convertDateObjectToIcDate(currentRealDate);
+    const icDate = convertDateObjectToIcDate(currentIcDateValue);
 
-    // The old implementation was missing the IC Year calculation.
-    // Let's re-implement it based on the logic from OLD.time.controller.ts
+    // The IC year is based on the difference between the current REAL year
+    // and the REAL start year of the event, added to the IC start year.
     if (icDate) {
-        const icStartYear = require('../../../_config/config.json').icDate.yearDefault;
-        const icEventStartYear = dayjs(icEventStartDate).utc().year();
-        const currentRealDateYear = dayjs(currentRealDate).utc().year();
-        const yearDifference = currentRealDateYear - icEventStartYear;
+        const ocEventStartYear = dayjs(ocEventStartDate).utc().year();
+        const currentRealWorldYear = dayjs.utc().year();
+        const yearDifference = currentRealWorldYear - ocEventStartYear;
         icDate.iYear = icStartYear + (yearDifference > 0 ? yearDifference : 0);
     }
     return icDate;

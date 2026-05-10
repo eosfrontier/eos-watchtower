@@ -31,13 +31,12 @@
             font-weight: bold;
             color: #555;
         }
-        input[type="date"] {
+        .form-group > input[type="number"] {
             width: 100%;
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
             box-sizing: border-box;
-            font-size: 16px;
         }
         button {
             width: 100%;
@@ -161,12 +160,16 @@
                 </div>
                 <span id="icCurrentDisplay" class="current-date-display"></span>
             </div>
+            <div class="form-group">
+                <label for="icStartYear">IC Start Year:</label>
+                <input type="number" id="icStartYear" name="icStartYear" placeholder="e.g., 240" required>
+                <span id="icStartYearDisplay" class="current-date-display"></span>
+            </div>
             <button type="submit">Update Settings</button>
             <button type="button" id="refreshBtn" style="margin-left: 10px; background-color: #6c757d;">Refresh Current Values</button>
         </form>
         <div id="message" class="message"></div>
         <div class="info">
-            <strong>Note:</strong> Enter dates in DD/MMM/YYYY format (e.g., 12/Dec/2025). Month abbreviations: Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec. Times are automatically set to 12:00 UTC.
             <div id="loadingStatus" style="margin-top: 10px; font-style: italic; color: #666;"></div>
         </div>
     </div>
@@ -205,11 +208,13 @@
                     document.getElementById('icMonth').value = numberToMonthName(icDate.month);
                     // The IC year should always match the OC year
                     document.getElementById('icYear').value = ocDate.year;
+                    document.getElementById('icStartYear').value = data.icStartYear;
                     
                     // Display current dates in DD/MMM/YYYY format
                     document.getElementById('ocCurrentDisplay').textContent = `Current: ${ocDate.day}/${numberToMonthName(ocDate.month)}/${ocDate.year}`;
                     // The IC year display should also match the OC year
                     document.getElementById('icCurrentDisplay').textContent = `Current: ${icDate.day}/${numberToMonthName(icDate.month)}`;
+                    document.getElementById('icStartYearDisplay').textContent = `Current: ${data.icStartYear}`;
                     
                     loadingStatus.textContent = 'Current settings loaded successfully.';
                     loadingStatus.style.color = '#28a745';
@@ -272,6 +277,7 @@
             const icMonthName = document.getElementById('icMonth').value;
             const icMonth = monthNameToNumber(icMonthName);
             const icYear = document.getElementById('icYear').value;
+            const icStartYear = document.getElementById('icStartYear').value;
             
             // Validate month names
             if (!ocMonth || !icMonth) {
@@ -299,6 +305,7 @@
                     body: JSON.stringify({
                         ocEventStartDate: new Date(ocDateString + 'T12:00:00').toISOString(),
                         icEventStartDate: new Date(icDateString + 'T12:00:00').toISOString(),
+                        icStartYear: new Number(icStartYear),
                     })
                 });
 
@@ -310,7 +317,7 @@
                     messageDiv.textContent = data.message;
                     messageDiv.className = 'message success';
                     messageDiv.style.display = 'block';
-                    loadingStatus.textContent = `Settings updated. OC: ${ocDay}/${ocMonthName}/${ocYear}, IC: ${icDay}/${icMonthName}/${icYear}`;
+                    loadingStatus.textContent = `Settings updated. OC: ${ocDay}/${ocMonthName}/${ocYear}, IC: ${icDay}/${icMonthName}/${icYear}, IC Start Year: ${icStartYear}`;
                     loadingStatus.style.color = '#28a745';
                 } else {
                     const error = await response.json();

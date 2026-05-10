@@ -31,6 +31,11 @@ export class Routes {
             res.status(200).send({ message: `Welcome to the ${config.name} API.` });
         });
 
+        // Event date settings page
+        app.route('/api/event-date-settings').get((req: Request, res: Response) => {
+            res.sendFile('event-date-settings.html', { "root": __dirname + '/../public/' });
+        });
+
         // Most routes are always enabled by default.
         app.use('/api/beacon', BeaconRouter.getRoutes());
         app.use('/api/time', TimeRoutes.getRoutes());

@@ -63,16 +63,18 @@
             align-items: center;
             gap: 5px;
         }
-        .date-inputs input {
+        .date-inputs input, .date-inputs select {
             width: 60px;
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
             box-sizing: border-box;
             text-align: center;
+            font-family: inherit;
+            font-size: 1em;
         }
-        .date-inputs input[name$="Month"] {
-            width: 70px;
+        .date-inputs select[name$="Month"] {
+            width: 85px; /* A bit wider for dropdown */
         }
         .date-inputs input[name$="Year"] {
             width: 80px;
@@ -116,7 +118,20 @@
                 <div class="date-inputs">
                     <input type="number" id="ocDay" name="ocDay" placeholder="DD" min="1" max="31" required>
                     <span>/</span>
-                    <input type="text" id="ocMonth" name="ocMonth" placeholder="MMM" list="monthList" required>
+                    <select id="ocMonth" name="ocMonth" required>
+                        <option value="Jan">Jan</option>
+                        <option value="Feb">Feb</option>
+                        <option value="Mar">Mar</option>
+                        <option value="Apr">Apr</option>
+                        <option value="May">May</option>
+                        <option value="Jun">Jun</option>
+                        <option value="Jul">Jul</option>
+                        <option value="Aug">Aug</option>
+                        <option value="Sep">Sep</option>
+                        <option value="Oct">Oct</option>
+                        <option value="Nov">Nov</option>
+                        <option value="Dec">Dec</option>
+                    </select>
                     <span>/</span>
                     <input type="number" id="ocYear" name="ocYear" placeholder="YYYY" min="2020" max="2030" required>
                 </div>
@@ -127,8 +142,21 @@
                 <div class="date-inputs">
                     <input type="number" id="icDay" name="icDay" placeholder="DD" min="1" max="31" required>
                     <span>/</span>
-                    <input type="text" id="icMonth" name="icMonth" placeholder="MMM" list="monthList" required>
-                    <span style="color: #999; font-size: 14px;">/ (year same as OC)</span>
+                    <select id="icMonth" name="icMonth" required>
+                        <option value="Jan">Jan</option>
+                        <option value="Feb">Feb</option>
+                        <option value="Mar">Mar</option>
+                        <option value="Apr">Apr</option>
+                        <option value="May">May</option>
+                        <option value="Jun">Jun</option>
+                        <option value="Jul">Jul</option>
+                        <option value="Aug">Aug</option>
+                        <option value="Sep">Sep</option>
+                        <option value="Oct">Oct</option>
+                        <option value="Nov">Nov</option>
+                        <option value="Dec">Dec</option>
+                    </select>
+                    <span style="color: #999; font-size: 14px;"></span>
                     <input type="number" id="icYear" name="icYear" placeholder="YYYY" min="2020" max="2030" style="display: none;">
                 </div>
                 <span id="icCurrentDisplay" class="current-date-display"></span>
@@ -136,20 +164,6 @@
             <button type="submit">Update Settings</button>
             <button type="button" id="refreshBtn" style="margin-left: 10px; background-color: #6c757d;">Refresh Current Values</button>
         </form>
-        <datalist id="monthList">
-            <option>Jan</option>
-            <option>Feb</option>
-            <option>Mar</option>
-            <option>Apr</option>
-            <option>May</option>
-            <option>Jun</option>
-            <option>Jul</option>
-            <option>Aug</option>
-            <option>Sep</option>
-            <option>Oct</option>
-            <option>Nov</option>
-            <option>Dec</option>
-        </datalist>
         <div id="message" class="message"></div>
         <div class="info">
             <strong>Note:</strong> Enter dates in DD/MMM/YYYY format (e.g., 12/Dec/2025). Month abbreviations: Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec. Times are automatically set to 12:00 UTC.
@@ -165,6 +179,11 @@
         // Load current settings on page load
         window.addEventListener('DOMContentLoaded', async () => {
             await loadCurrentSettings();
+
+            // Sync IC year with OC year input
+            document.getElementById('ocYear').addEventListener('input', (e) => {
+                document.getElementById('icYear').value = e.target.value;
+            });
         });
 
         async function loadCurrentSettings() {
@@ -184,11 +203,13 @@
                     
                     document.getElementById('icDay').value = icDate.day;
                     document.getElementById('icMonth').value = numberToMonthName(icDate.month);
-                    document.getElementById('icYear').value = icDate.year;
+                    // The IC year should always match the OC year
+                    document.getElementById('icYear').value = ocDate.year;
                     
                     // Display current dates in DD/MMM/YYYY format
                     document.getElementById('ocCurrentDisplay').textContent = `Current: ${ocDate.day}/${numberToMonthName(ocDate.month)}/${ocDate.year}`;
-                    document.getElementById('icCurrentDisplay').textContent = `Current: ${icDate.day}/${numberToMonthName(icDate.month)}/${icDate.year}`;
+                    // The IC year display should also match the OC year
+                    document.getElementById('icCurrentDisplay').textContent = `Current: ${icDate.day}/${numberToMonthName(icDate.month)}`;
                     
                     loadingStatus.textContent = 'Current settings loaded successfully.';
                     loadingStatus.style.color = '#28a745';

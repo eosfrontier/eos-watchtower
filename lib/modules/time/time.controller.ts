@@ -120,7 +120,7 @@ export const convertDateObjectToIcDate = (date) => {
     if (!date) return false;
 
     const sourceDate = dayjs(date).utc();
-    const iDayOfWeek = getLocalizedDayNumber();
+    const iDayOfWeek = getLocalizedDayNumber(sourceDate.day());
 
     const input = {
         iDayOfWeek,
@@ -139,15 +139,25 @@ export const getCurrentIcDate = async () => {
     
     const { ocEventStartDate, icEventStartDate } = eventDateData;
     const _timePassed = getTimePassedSinceDate(ocEventStartDate);
-    let icDate = convertDateObjectToIcDate(icEventStartDate);
 
+    let currentRealDate = icEventStartDate;
     if (_timePassed > 0) {
-        const modifiedIcDate = dayjs(icEventStartDate)
+        currentRealDate = dayjs(icEventStartDate)
             .utc()
             .add(_timePassed)
             .toDate();
-        icDate = convertDateObjectToIcDate(modifiedIcDate);
     }
 
+    const icDate = convertDateObjectToIcDate(currentRealDate);
+
+    // The old implementation was missing the IC Year calculation.
+    // Let's re-implement it based on the logic from OLD.time.controller.ts
+    if (icDate) {
+        const icStartYear = require('../../../_config/config.json').icDate.yearDefault;
+        const icEventStartYear = dayjs(icEventStartDate).utc().year();
+        const currentRealDateYear = dayjs(currentRealDate).utc().year();
+        const yearDifference = currentRealDateYear - icEventStartYear;
+        icDate.iYear = icStartYear + (yearDifference > 0 ? yearDifference : 0);
+    }
     return icDate;
 };

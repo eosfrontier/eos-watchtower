@@ -1,5 +1,6 @@
 import { Express, Request, Response } from 'express';
 import express = require('express');
+import path = require('path');
 import { BeaconRouter } from './routes/beacon.routes';
 import { TimeRoutes } from './routes/time.routes';
 import { SecLevel } from './routes/security.routes';
@@ -24,7 +25,7 @@ export class Routes {
         app.use(express.static('public'));
 
         app.route('/').get((req: Request, res: Response) => {
-            res.sendFile('index.html', { "root": __dirname + '/public/' });
+            res.sendFile('index.html', { "root": path.join(__dirname, '../public') });
         });
 
         app.route('/api/').get((req: Request, res: Response) => {

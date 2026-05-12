@@ -1,14 +1,13 @@
-const dayjs = require('dayjs');
-const UTC = require('dayjs/plugin/utc');
-const {
-    getLocalizedDayNumber,
-    getDayOfWeekName,
-} = require("./time.helper");
-const { IcDate } = require("../../bin/models/time");
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import { getLocalizedDayNumber, getDayOfWeekName } from "./time.helper";
+import { IcDate } from "../../bin/models/time";
 import { SOCKET_TIME_UPDATE } from "../../shared/constants.sockets";
 import { Server } from "../../bin/server";
+import EventDateSettings from "../../bin/models/eventDateSettings";
+import CONFIG from "../../../_config/config.json";
 
-dayjs.extend(UTC);
+dayjs.extend(utc);
 
 
 // TODO: dynamic dates.
@@ -23,10 +22,81 @@ const _HOUR_PLACEHOLDER = 12
  * 
  *  instead of the expected 2020, 1, 1.
  */
-export const eventDateData = {
+
+// Default fallback dates in case MongoDB record doesn't exist
+const DEFAULT_EVENT_DATES = {
     ocEventStartDate: new Date(2025, 11, 12, _HOUR_PLACEHOLDER),
     icEventStartDate: new Date(2025, 8, 26, _HOUR_PLACEHOLDER),
+    icStartYear: CONFIG.icDate.yearDefault,
 }
+
+// This will be populated from MongoDB on first use
+let eventDateData = { ...DEFAULT_EVENT_DATES };
+
+/**
+ * @description Fetch event date settings from MongoDB, with fallback to defaults
+ * @return {Promise<{ocEventStartDate: Date, icEventStartDate: Date}>}
+ */
+export const getEventDateSettings = async () => {
+    try {
+        let settings = await EventDateSettings.findOne();
+        
+        // If no settings exist, create one with defaults
+        if (!settings) {
+            settings = new EventDateSettings(DEFAULT_EVENT_DATES);
+            await settings.save();
+        }
+        
+        eventDateData = {
+            ocEventStartDate: settings.ocEventStartDate,
+            icEventStartDate: settings.icEventStartDate,
+            icStartYear: settings.icStartYear,
+        };
+        
+        return eventDateData;
+    } catch (error) {
+        console.error('[TIME.CTRL] Error fetching event dates from MongoDB:', error);
+        return eventDateData; // Return cached or default values on error
+    }
+};
+
+/**
+ * @description Update event date settings in MongoDB
+ * @param {Date} ocEventStartDate
+ * @param {Date} icEventStartDate
+ * @param {number} icStartYear
+ * @return {Promise<IEventDateSettings>}
+ */
+export const updateEventDateSettings = async (ocEventStartDate: Date, icEventStartDate: Date, icStartYear: number) => {
+    try {
+        let settings = await EventDateSettings.findOne();
+        
+        if (!settings) {
+            settings = new EventDateSettings({
+                ocEventStartDate,
+                icEventStartDate,
+                icStartYear,
+            });
+        } else {
+            settings.ocEventStartDate = ocEventStartDate;
+            settings.icEventStartDate = icEventStartDate;
+            settings.icStartYear = icStartYear;
+            settings.updatedAt = new Date();
+        }
+        
+        await settings.save();
+        eventDateData = {
+            ocEventStartDate: settings.ocEventStartDate,
+            icEventStartDate: settings.icEventStartDate,
+            icStartYear: settings.icStartYear,
+        };
+        
+        return settings;
+    } catch (error) {
+        console.error('[TIME.CTRL] Error updating event dates:', error);
+        throw error;
+    }
+};
 
 /**
  * @description Calculate and return the amount of hours between event start and -now-
@@ -54,7 +124,7 @@ export const convertDateObjectToIcDate = (date) => {
     if (!date) return false;
 
     const sourceDate = dayjs(date).utc();
-    const iDayOfWeek = getLocalizedDayNumber();
+    const iDayOfWeek = getLocalizedDayNumber(sourceDate.day());
 
     const input = {
         iDayOfWeek,
@@ -67,18 +137,30 @@ export const convertDateObjectToIcDate = (date) => {
     return new IcDate(input);
 };
 
-export const getCurrentIcDate = () => {
-    const { ocEventStartDate, icEventStartDate } = eventDateData;
+export const getCurrentIcDate = async () => {
+    // Fetch latest settings from MongoDB
+    await getEventDateSettings();
+    
+    const { ocEventStartDate, icEventStartDate, icStartYear } = eventDateData;
     const _timePassed = getTimePassedSinceDate(ocEventStartDate);
-    let icDate = convertDateObjectToIcDate(icEventStartDate);
 
+    let currentIcDateValue = icEventStartDate;
     if (_timePassed > 0) {
-        const modifiedIcDate = dayjs(icEventStartDate)
+        currentIcDateValue = dayjs(icEventStartDate)
             .utc()
             .add(_timePassed)
             .toDate();
-        icDate = convertDateObjectToIcDate(modifiedIcDate);
     }
 
+    const icDate = convertDateObjectToIcDate(currentIcDateValue);
+
+    // The IC year is based on the difference between the current REAL year
+    // and the REAL start year of the event, added to the IC start year.
+    if (icDate) {
+        const ocEventStartYear = dayjs(ocEventStartDate).utc().year();
+        const currentRealWorldYear = dayjs.utc().year();
+        const yearDifference = currentRealWorldYear - ocEventStartYear;
+        icDate.iYear = icStartYear + (yearDifference > 0 ? yearDifference : 0);
+    }
     return icDate;
 };

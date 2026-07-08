@@ -58,11 +58,14 @@ export class App {
 
     private setCrossOriginResourceSharing(): void {
         App.app.use((req, res, next) => {
-            // res.setHeader("Access-Control-Allow-Origin", req.headers.origin);
-            // res.setHeader('Access-Control-Allow-Credentials', 'true');
-            // res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-            // res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-            res.header("Access-Control-Allow-Origin", "*");
+            const origin = req.headers.origin;
+            const eosFrontierRegex = /^https?:\/\/([^/]+\.)?eosfrontier\.space$/i;
+
+            if (origin && eosFrontierRegex.test(origin)) {
+                res.header("Access-Control-Allow-Origin", origin);
+            } else {
+                res.header("Access-Control-Allow-Origin", "*");
+            }
             res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
             next();
         });

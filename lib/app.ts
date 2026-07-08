@@ -67,9 +67,10 @@ export class App {
             }
             res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
             res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+            res.header("Access-Control-Max-Age", "86400"); // Cache preflight for 24 hours
 
             if (req.method === 'OPTIONS') {
-                res.sendStatus(200);
+                res.status(204).send(); // 204 No Content is preferred for preflight success
                 return;
             }
             next();

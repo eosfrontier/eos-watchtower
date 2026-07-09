@@ -1,5 +1,5 @@
 import { WeatherData } from '../../bin/models/weather';
-import request = require('request');
+import https = require('https');
 import { Server } from '../../bin/server';
 const CronJob = require('cron').CronJob;
 const config = require('../../../_config/config.json');
@@ -7,10 +7,6 @@ const config = require('../../../_config/config.json');
 export class WeatherController {
 
     public static currentWeather: WeatherData;
-    private static options = {
-        uri: config.weather.api_url,
-        json: true
-    };
 
     /**
      * @description Initialise the WeatherController:
@@ -31,12 +27,25 @@ export class WeatherController {
      * @description Get weather data from the API, push it through to setCurrentWeather
      */
     public static getLiveWeatherData(): void {
-        request.get(this.options, (error, result, body) => {
-            if (!error && result.statusCode === 200) {
-                WeatherController.setCurrentWeather(body);
-            } else {
-                console.error(`ERR: getLiveWeatherData => error: ${error}`);
-            }
+        if (!config.weather.api_url) return;
+
+        https.get(config.weather.api_url, (res) => {
+            let data = '';
+
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+
+            res.on('end', () => {
+                try {
+                    const body = JSON.parse(data);
+                    WeatherController.setCurrentWeather(body);
+                } catch (error) {
+                    console.error(`ERR: getLiveWeatherData parsing failed: ${error.message}`);
+                }
+            });
+        }).on('error', (error) => {
+            console.error(`ERR: getLiveWeatherData request failed: ${error.message}`);
         });
     }
 

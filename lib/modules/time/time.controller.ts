@@ -29,7 +29,7 @@ const DEFAULT_EVENT_DATES = {
 }
 
 // This will be populated from MongoDB on first use
-let eventDateData = { ...DEFAULT_EVENT_DATES };
+let eventDateData = Object.assign({}, DEFAULT_EVENT_DATES);
 
 /**
  * @description Fetch event date settings from MongoDB, with fallback to defaults

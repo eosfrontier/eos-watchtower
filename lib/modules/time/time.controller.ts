@@ -2,8 +2,6 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import { getLocalizedDayNumber, getDayOfWeekName } from "./time.helper";
 import { IcDate } from "../../bin/models/time";
-import { SOCKET_TIME_UPDATE } from "../../shared/constants.sockets";
-import { Server } from "../../bin/server";
 import EventDateSettings from "../../bin/models/eventDateSettings";
 import CONFIG from "../../../_config/config.json";
 

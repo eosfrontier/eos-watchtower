@@ -47,7 +47,6 @@ export class App {
     }
 
     private config(): void {
-        App.app.use(cors());
         App.app.use(bodyParser.json());
         App.app.use(bodyParser.urlencoded({ extended: false }));
     }
@@ -58,12 +57,22 @@ export class App {
 
     private setCrossOriginResourceSharing(): void {
         App.app.use((req, res, next) => {
-            // res.setHeader("Access-Control-Allow-Origin", req.headers.origin);
-            // res.setHeader('Access-Control-Allow-Credentials', 'true');
-            // res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-            // res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-            res.header("Access-Control-Allow-Origin", "*");
-            res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+            const origin = req.headers.origin;
+            const eosFrontierRegex = /^https?:\/\/([^/]+\.)?eosfrontier\.space$/i;
+
+            if (origin && eosFrontierRegex.test(origin)) {
+                res.header("Access-Control-Allow-Origin", origin);
+            } else {
+                res.header("Access-Control-Allow-Origin", "*");
+            }
+            res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+            res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+            res.header("Access-Control-Max-Age", "86400"); // Cache preflight for 24 hours
+
+            if (req.method === 'OPTIONS') {
+                res.status(204).send(); // 204 No Content is preferred for preflight success
+                return;
+            }
             next();
         });
     }

@@ -133,21 +133,21 @@ export const updateEventDateSettings = async (
     }
 };
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 /**
- * @description Calculate and return the amount of hours between event start and -now-
- * @param {Date} ocEventStart
- * @return {Number} amount of time (Ms) passed, minimum of 0
+ * @description Calculate and return the signed time (ms) between startDate and today
+ *              in whole UTC calendar days (negative before startDate, 0 on startDate,
+ *              positive after startDate).
+ * @param {Date} startDate
+ * @return {Number} signed amount of time (ms) relative to startDate
  */
 export const getTimePassedSinceDate = (startDate) => {
-    let diff = 0;
+    if (!startDate) return 0;
 
-    if (startDate) {
-        const now = dayjs().utc().hour(23);
-        const start = dayjs(startDate).utc();
-
-        diff = now.diff(start) > 0 ? now.diff(start) : 0;
-    }
-    return diff;
+    const today = dayjs.utc().startOf('day');
+    const start = dayjs(startDate).utc().startOf('day');
+    return today.diff(start);
 };
 
 /**
@@ -181,36 +181,31 @@ export const getCurrentIcDate = async () => {
     
     const { ocEventStartDate, icEventStartDate, icStartYear, icDayOfWeekOffset } = eventDateData;
     const _timePassed = getTimePassedSinceDate(ocEventStartDate);
+    const daysDifference = _timePassed === 0 ? 0 : Math.round(_timePassed / MS_PER_DAY);
 
-    let currentIcDateValue = icEventStartDate;
-    if (_timePassed > 0) {
-        currentIcDateValue = dayjs(icEventStartDate)
-            .utc()
-            .add(_timePassed)
-            .toDate();
-    }
-
-    // Start from the OC event start day of week, advance by the elapsed UTC calendar
-    // days matching currentIcDateValue, and apply any configured day-of-week offset.
-    const ocStartDayOfWeek = getLocalizedDayNumber(dayjs(ocEventStartDate).utc().day());
-    const daysSinceStart = dayjs(currentIcDateValue)
+    const currentIcDateValue = dayjs(icEventStartDate)
         .utc()
         .startOf('day')
-        .diff(dayjs(icEventStartDate).utc().startOf('day'), 'day');
+        .add(daysDifference, 'day')
+        .toDate();
+
+    // Start from the OC event start day of week, offset by whole UTC calendar days
+    // relative to ocEventStartDate (negative before start, 0 on start, positive after),
+    // plus the configured day-of-week offset.
+    const ocStartDayOfWeek = getLocalizedDayNumber(dayjs(ocEventStartDate).utc().day());
     const iDayOfWeek = applyDayOfWeekOffset(
         ocStartDayOfWeek,
-        daysSinceStart + (icDayOfWeekOffset ?? 0)
+        daysDifference + (icDayOfWeekOffset ?? 0)
     );
 
     const icDate = convertDateObjectToIcDate(currentIcDateValue, iDayOfWeek);
 
-    // The IC year is based on the difference between the current REAL year
-    // and the REAL start year of the event, added to the IC start year.
+    // Adjust the IC year by how many calendar years the shifted IC date differs
+    // from icEventStartDate (handles both backward and forward year rollovers).
     if (icDate) {
-        const ocEventStartYear = dayjs(ocEventStartDate).utc().year();
-        const currentRealWorldYear = dayjs.utc().year();
-        const yearDifference = currentRealWorldYear - ocEventStartYear;
-        icDate.iYear = icStartYear + (yearDifference > 0 ? yearDifference : 0);
+        const icEventStartYear = dayjs(icEventStartDate).utc().year();
+        const currentIcYear = dayjs(currentIcDateValue).utc().year();
+        icDate.iYear = icStartYear + (currentIcYear - icEventStartYear);
     }
     return icDate;
 };

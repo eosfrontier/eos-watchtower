@@ -1,6 +1,11 @@
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
-import { getLocalizedDayNumber, getDayOfWeekName } from "./time.helper";
+import {
+    getLocalizedDayNumber,
+    getDayOfWeekName,
+    applyDayOfWeekOffset,
+    calculateDayOfWeekOffset,
+} from "./time.helper";
 import { IcDate } from "../../bin/models/time";
 import EventDateSettings from "../../bin/models/eventDateSettings";
 import CONFIG from "../../../_config/config.json";
@@ -26,14 +31,18 @@ const DEFAULT_EVENT_DATES = {
     ocEventStartDate: new Date(2025, 11, 12, _HOUR_PLACEHOLDER),
     icEventStartDate: new Date(2025, 8, 26, _HOUR_PLACEHOLDER),
     icStartYear: CONFIG.icDate.yearDefault,
+    icDayOfWeekOffset: 0,
 }
 
 // This will be populated from MongoDB on first use
-let eventDateData = { ...DEFAULT_EVENT_DATES };
+let eventDateData = {
+    ...DEFAULT_EVENT_DATES,
+    icStartDayOfWeek: getLocalizedDayNumber(dayjs(DEFAULT_EVENT_DATES.ocEventStartDate).utc().day()),
+};
 
 /**
  * @description Fetch event date settings from MongoDB, with fallback to defaults
- * @return {Promise<{ocEventStartDate: Date, icEventStartDate: Date}>}
+ * @return {Promise<{ocEventStartDate: Date, icEventStartDate: Date, icStartYear: number, icStartDayOfWeek: number, icDayOfWeekOffset: number}>}
  */
 export const getEventDateSettings = async () => {
     try {
@@ -45,10 +54,14 @@ export const getEventDateSettings = async () => {
             await settings.save();
         }
         
+        const icDayOfWeekOffset = settings.icDayOfWeekOffset ?? 0;
+        const ocStartDayOfWeek = getLocalizedDayNumber(dayjs(settings.ocEventStartDate).utc().day());
         eventDateData = {
             ocEventStartDate: settings.ocEventStartDate,
             icEventStartDate: settings.icEventStartDate,
             icStartYear: settings.icStartYear,
+            icStartDayOfWeek: applyDayOfWeekOffset(ocStartDayOfWeek, icDayOfWeekOffset),
+            icDayOfWeekOffset,
         };
         
         return eventDateData;
@@ -59,14 +72,25 @@ export const getEventDateSettings = async () => {
 };
 
 /**
- * @description Update event date settings in MongoDB
+ * @description Update event date settings in MongoDB, calculating icDayOfWeekOffset
+ *              from ocEventStartDate's weekday and the requested icStartDayOfWeek (1-7).
  * @param {Date} ocEventStartDate
  * @param {Date} icEventStartDate
  * @param {number} icStartYear
- * @return {Promise<IEventDateSettings>}
+ * @param {number} [icStartDayOfWeek] - Optional localized day of week (1=monday .. 7=sunday); defaults to OC start weekday
  */
-export const updateEventDateSettings = async (ocEventStartDate: Date, icEventStartDate: Date, icStartYear: number) => {
+export const updateEventDateSettings = async (
+    ocEventStartDate: Date,
+    icEventStartDate: Date,
+    icStartYear: number,
+    icStartDayOfWeek?: number
+) => {
     try {
+        const ocStartDayOfWeek = getLocalizedDayNumber(dayjs(ocEventStartDate).utc().day());
+        const icDayOfWeekOffset = icStartDayOfWeek !== undefined
+            ? calculateDayOfWeekOffset(ocStartDayOfWeek, icStartDayOfWeek)
+            : 0;
+
         let settings = await EventDateSettings.findOne();
         
         if (!settings) {
@@ -74,55 +98,71 @@ export const updateEventDateSettings = async (ocEventStartDate: Date, icEventSta
                 ocEventStartDate,
                 icEventStartDate,
                 icStartYear,
+                icDayOfWeekOffset,
             });
         } else {
             settings.ocEventStartDate = ocEventStartDate;
             settings.icEventStartDate = icEventStartDate;
             settings.icStartYear = icStartYear;
+            settings.icDayOfWeekOffset = icDayOfWeekOffset;
             settings.updatedAt = new Date();
         }
         
         await settings.save();
+        const effectiveStartDayOfWeek = applyDayOfWeekOffset(ocStartDayOfWeek, icDayOfWeekOffset);
         eventDateData = {
             ocEventStartDate: settings.ocEventStartDate,
             icEventStartDate: settings.icEventStartDate,
             icStartYear: settings.icStartYear,
+            icStartDayOfWeek: effectiveStartDayOfWeek,
+            icDayOfWeekOffset,
         };
         
-        return settings;
+        return {
+            _id: settings._id,
+            ocEventStartDate: settings.ocEventStartDate,
+            icEventStartDate: settings.icEventStartDate,
+            icStartYear: settings.icStartYear,
+            icStartDayOfWeek: effectiveStartDayOfWeek,
+            icDayOfWeekOffset,
+            updatedAt: settings.updatedAt,
+        };
     } catch (error) {
         console.error('[TIME.CTRL] Error updating event dates:', error);
         throw error;
     }
 };
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 /**
- * @description Calculate and return the amount of hours between event start and -now-
- * @param {Date} ocEventStart
- * @return {Number} amount of time (Ms) passed, minimum of 0
+ * @description Calculate and return the signed time (ms) between startDate and today
+ *              in whole UTC calendar days (negative before startDate, 0 on startDate,
+ *              positive after startDate).
+ * @param {Date} startDate
+ * @return {Number} signed amount of time (ms) relative to startDate
  */
 export const getTimePassedSinceDate = (startDate) => {
-    let diff = 0;
+    if (!startDate) return 0;
 
-    if (startDate) {
-        const now = dayjs().utc().hour(23);
-        const start = dayjs(startDate).utc();
-
-        diff = now.diff(start) > 0 ? now.diff(start) : 0;
-    }
-    return diff;
+    const today = dayjs.utc().startOf('day');
+    const start = dayjs(startDate).utc().startOf('day');
+    return today.diff(start);
 };
 
 /**
  *
  * @param {Date} date
- * @return {IcDate} converted 'input'
+ * @param {number} [dayOfWeekOverride] - Optional localized day of week (1=monday .. 7=sunday)
+ * @return {IcDate | false} converted 'input'
  */
-export const convertDateObjectToIcDate = (date) => {
+export const convertDateObjectToIcDate = (date, dayOfWeekOverride?: number) => {
     if (!date) return false;
 
     const sourceDate = dayjs(date).utc();
-    const iDayOfWeek = getLocalizedDayNumber(sourceDate.day());
+    const iDayOfWeek = dayOfWeekOverride !== undefined
+        ? applyDayOfWeekOffset(dayOfWeekOverride, 0)
+        : getLocalizedDayNumber(sourceDate.day());
 
     const input = {
         iDayOfWeek,
@@ -139,26 +179,33 @@ export const getCurrentIcDate = async () => {
     // Fetch latest settings from MongoDB
     await getEventDateSettings();
     
-    const { ocEventStartDate, icEventStartDate, icStartYear } = eventDateData;
+    const { ocEventStartDate, icEventStartDate, icStartYear, icDayOfWeekOffset } = eventDateData;
     const _timePassed = getTimePassedSinceDate(ocEventStartDate);
+    const daysDifference = _timePassed === 0 ? 0 : Math.round(_timePassed / MS_PER_DAY);
 
-    let currentIcDateValue = icEventStartDate;
-    if (_timePassed > 0) {
-        currentIcDateValue = dayjs(icEventStartDate)
-            .utc()
-            .add(_timePassed)
-            .toDate();
-    }
+    const currentIcDateValue = dayjs(icEventStartDate)
+        .utc()
+        .startOf('day')
+        .add(daysDifference, 'day')
+        .toDate();
 
-    const icDate = convertDateObjectToIcDate(currentIcDateValue);
+    // Start from the OC event start day of week, offset by whole UTC calendar days
+    // relative to ocEventStartDate (negative before start, 0 on start, positive after),
+    // plus the configured day-of-week offset.
+    const ocStartDayOfWeek = getLocalizedDayNumber(dayjs(ocEventStartDate).utc().day());
+    const iDayOfWeek = applyDayOfWeekOffset(
+        ocStartDayOfWeek,
+        daysDifference + (icDayOfWeekOffset ?? 0)
+    );
 
-    // The IC year is based on the difference between the current REAL year
-    // and the REAL start year of the event, added to the IC start year.
+    const icDate = convertDateObjectToIcDate(currentIcDateValue, iDayOfWeek);
+
+    // Adjust the IC year by how many calendar years the shifted IC date differs
+    // from icEventStartDate (handles both backward and forward year rollovers).
     if (icDate) {
-        const ocEventStartYear = dayjs(ocEventStartDate).utc().year();
-        const currentRealWorldYear = dayjs.utc().year();
-        const yearDifference = currentRealWorldYear - ocEventStartYear;
-        icDate.iYear = icStartYear + (yearDifference > 0 ? yearDifference : 0);
+        const icEventStartYear = dayjs(icEventStartDate).utc().year();
+        const currentIcYear = dayjs(currentIcDateValue).utc().year();
+        icDate.iYear = icStartYear + (currentIcYear - icEventStartYear);
     }
     return icDate;
 };

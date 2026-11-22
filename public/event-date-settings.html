@@ -66,6 +66,20 @@
                 <input type="number" id="icStartYear" name="icStartYear" placeholder="e.g., 240" required>
                 <span id="icStartYearDisplay" class="current-date-display"></span>
             </div>
+            <div class="form-group">
+                <label for="icStartDayOfWeek">IC Start Day of Week:</label>
+                <select id="icStartDayOfWeek" name="icStartDayOfWeek" required>
+                    <option value="1">Monday</option>
+                    <option value="2">Tuesday</option>
+                    <option value="3">Wednesday</option>
+                    <option value="4">Thursday</option>
+                    <option value="5">Friday</option>
+                    <option value="6">Saturday</option>
+                    <option value="7">Sunday</option>
+                </select>
+                <span id="icDayOfWeekPreview" class="current-date-display"></span>
+                <span id="icStartDayOfWeekDisplay" class="current-date-display"></span>
+            </div>
             <button type="submit">Update Settings</button>
             <button type="button" id="refreshBtn" style="margin-left: 10px; background-color: #6c757d;">Refresh Current
                 Values</button>

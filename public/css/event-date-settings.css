@@ -29,12 +29,15 @@ label {
     color: #555;
 }
 
-.form-group>input[type="number"] {
+.form-group>input[type="number"],
+.form-group>select {
     width: 100%;
     padding: 10px;
     border: 1px solid #ddd;
     border-radius: 4px;
     box-sizing: border-box;
+    font-family: inherit;
+    font-size: 1em;
 }
 
 button {
@@ -89,6 +92,13 @@ button[type="button"] {
 .date-inputs span {
     font-weight: bold;
     color: #666;
+}
+
+.current-date-display {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.9em;
+    color: #555;
 }
 
 .message {
